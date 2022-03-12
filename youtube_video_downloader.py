@@ -40,12 +40,14 @@ def download_single_video(link):
     else:
         print(f'Downloading video: {yt_title}')
         try:
-            stream = yt.streams.filter(file_extension='mp4', res='360p').first()
+            video_resolution = [stream.resolution for stream in yt.streams.filter(progressive=True)]
+            if '720p' in video_resolution:
+                res = '720p'
+            else:
+                res = '360p'
+            stream = yt.streams.filter(file_extension='mp4', res=res).first()
             stream.download()
             print(f'{COMPLETE}Complete downloading video: {yt_title}{END_COLOR}')
         except:
             print(f'{FAIL}Failed downloading video: {yt_title}{END_COLOR}')
     print('----')
-
-
-
