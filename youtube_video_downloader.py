@@ -8,24 +8,29 @@ FAIL = "\033[91m" # red
 EXISTS = "\033[93m" # yellow
 END_COLOR = "\033[0m" # stop
 
-def youtube_download(link):
+def youtube_download(url):
+    video_download_directory('downloaded-videos')
     try:
-        playlist = Playlist(link)
+        playlist = Playlist(url)
         download_playlist(playlist)
     except KeyError:
-        download_single_video(link) 
+        download_single_video(url) 
     finally:
         os.system('spd-say "download complete"')   
 
+def video_download_directory(directory_name):
+    if os.path.isdir(directory_name) and directory_name != 'downloaded-videos':
+        print(f'{EXISTS}File exists: {directory_name}{END_COLOR}')
+        print('--------')
+    else:
+        print(f'Creating file: {directory_name}')
+        os.mkdir(directory_name)
+        print('--------')
+    os.chdir(directory_name)
+
 def download_playlist(playlist):
     playlist_title = playlist.title.replace('|', '--')
-    if os.path.isdir(playlist_title):
-        print(f'{EXISTS}File exists: {playlist_title}{END_COLOR}')
-    else:
-        print(f'Creating file: {playlist_title}')
-        os.mkdir(playlist_title)
-    print('--------')
-    os.chdir(playlist_title)
+    video_download_directory(playlist_title)
     print(f'Downloading playlist: {playlist_title}')
     print('------')
     for url in playlist.video_urls:
@@ -33,8 +38,8 @@ def download_playlist(playlist):
     print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
     os.chdir('..')
 
-def download_single_video(link):
-    yt = YouTube(link, on_progress_callback=on_progress)
+def download_single_video(url):
+    yt = YouTube(url, on_progress_callback=on_progress)
     yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
     if os.path.isfile(f'{yt_title}.mp4'):
         print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
@@ -52,3 +57,5 @@ def download_single_video(link):
         except:
             print(f'{FAIL}Failed downloading video: {yt_title}{END_COLOR}')
     print('----')
+
+youtube_download('https://www.youtube.com/watch?v=QtXby3twMmI')
