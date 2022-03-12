@@ -1,5 +1,6 @@
 from pytube import YouTube
 from pytube import Playlist
+from pytube.cli import on_progress
 import os
 
 COMPLETE = "\033[92m" # green
@@ -33,7 +34,7 @@ def download_playlist(playlist):
     os.chdir('..')
 
 def download_single_video(link):
-    yt = YouTube(link)
+    yt = YouTube(link, on_progress_callback=on_progress)
     yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
     if os.path.isfile(f'{yt_title}.mp4'):
         print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
