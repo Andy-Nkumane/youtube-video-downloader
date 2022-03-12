@@ -19,13 +19,12 @@ def youtube_download(url):
         os.system('spd-say "download complete"')   
 
 def video_download_directory(directory_name):
-    if os.path.isdir(directory_name) and directory_name != 'downloaded-videos':
+    if os.path.isdir(directory_name):
         print(f'{EXISTS}File exists: {directory_name}{END_COLOR}')
-        print('--------')
     else:
         print(f'Creating file: {directory_name}')
         os.mkdir(directory_name)
-        print('--------')
+    print('--------')
     os.chdir(directory_name)
 
 def download_playlist(playlist):
@@ -52,10 +51,10 @@ def download_single_video(url):
             else:
                 res = '360p'
             stream = yt.streams.filter(file_extension='mp4', res=res).first()
+            print(f"resolution: {res}")
+            print(f"file size: {stream.filesize /(1000*1000):.2f}MB")
             stream.download()
             print(f'{COMPLETE}Complete downloading video: {yt_title}{END_COLOR}')
         except:
             print(f'{FAIL}Failed downloading video: {yt_title}{END_COLOR}')
     print('----')
-
-youtube_download('https://www.youtube.com/watch?v=QtXby3twMmI')
