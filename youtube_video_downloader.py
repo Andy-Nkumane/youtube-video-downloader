@@ -46,9 +46,10 @@ def download_playlist(playlist, type="video"):
     video_download_directory(playlist_title)
     print(f'Downloading playlist: {playlist_title}')
     print('------')
-    for index, url in enumerate(playlist.video_urls[:200], 1): # limiting playlists to 200 as music playlists go on forever
-        print(index)
-        download_single_media(url, type)
+    for index, url in enumerate(playlist.video_urls, 1): 
+        if index < 201:# limiting playlists to 200 as music playlists go on forever
+            print(index)
+            download_single_media(url, type)
     print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
     os.chdir('..')
 
