@@ -2,6 +2,7 @@ from pytube import YouTube
 from pytube import Playlist
 from pytube.cli import on_progress
 import os
+import pytube
 
 COMPLETE = "\033[92m" # green
 FAIL = "\033[91m" # red
@@ -50,6 +51,8 @@ def download_playlist(playlist, type="video"):
         if index < 201:# limiting playlists to 200 as music playlists go on forever
             print(index)
             download_single_media(url, type)
+        else:
+            break
     print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
     os.chdir('..')
 
@@ -57,7 +60,12 @@ def download_single_media(url, type="video"):
     type = type.lower()
     assert type in ["video", "audio"], "type should be video or audio"
     yt = YouTube(url, on_progress_callback=on_progress)
-    yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
+    try:
+        yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
+    except pytube.exceptions.PytubeError:
+        print(f'{FAIL}Failed downloading {type}: API issue{END_COLOR}')
+        return
+
     if os.path.isfile(f'{yt_title}.mp4'):
         print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
     else:
