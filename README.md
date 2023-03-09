@@ -42,6 +42,35 @@ Pass in the youtube link to the function `youtube_download` followed by the type
 * When the playlist has reached its end a completion message will be displayed on the terminal.
 * An audio to signal the completion of the playlist will also sound in case the user decides to run the code in the background and do other things in the meantime.
 
+### **Examples**
+
+#### Single Video
+
+```
+youtube_download("https://www.youtube.com/watch?v=UmljXZIypDc")
+```
+
+#### Video Playlist or Radio
+
+```
+youtube_download("https://www.youtube.com/watch?v=UmljXZIypDc&list=PL-osiE80TeTtoQCKZ03TU5fNfx2UY6U4p")
+
+youtube_download("https://www.youtube.com/watch?v=z4iBXscPeqo&list=RDz4iBXscPeqo&start_radio=1&rv=z4iBXscPeqo&t=0")
+```
+
+#### Single Audio
+
+```
+youtube_download("https://www.youtube.com/watch?v=UmljXZIypDc", "audio")
+```
+
+#### Audio PLaylist
+
+```
+youtube_download("https://www.youtube.com/watch?v=UmljXZIypDc&list=PL-osiE80TeTtoQCKZ03TU5fNfx2UY6U4p", "audio")
+```
+
+
 ## More stuff that would be nice
 
 * Downloading media from:
