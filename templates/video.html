@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %} Download Youtube Video {% endblock %}</h1>
+    <form method="post">
+        <div class="form-group">
+            <label for="youtube-link">Enter Youtube link</label>
+            <input type="text" name="youtube-link"
+                   placeholder="Youtube link" class="form-control"
+                   value="{{ request.form['youtube-link'] }}"></input>
+            <button type="button" class="btn btn-primary">Download</button>
+        </div>
+        <div class="form-group">
+            <label for="download-log">Download Log</label>
+            <textarea name="download-log" placeholder="No downloads recorded."
+                      class="form-control" disabled>{{ request.form['download-log'] }}</textarea>
+        </div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %} Youtube Media Downloader {% endblock %}</h1>
+    <div class="media-type">
+        <button type="button" onclick="location.href='{{ url_for('video') }}';" class="btn btn-primary" >Video</button>
+        <button type="button" onclick="window.location.href='{{ url_for('audio') }}';" class="btn btn-primary">Audio</button>
+    </div>
+{% endblock %}
