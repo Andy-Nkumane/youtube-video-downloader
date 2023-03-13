@@ -3,7 +3,7 @@ from werkzeug.exceptions import abort
 
 # run this first:
 # export FLASK_APP=<script name>
-# export FLASK_DEBUG=development
+# export FLASK_DEBUG=True
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key' # remove from script, get from environmental variable
