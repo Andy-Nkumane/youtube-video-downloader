@@ -13,6 +13,6 @@
         <div class="form-group">
             <label for="download-log">Download Log</label>
             <textarea name="download-log" placeholder="No downloads recorded."
-                      class="form-control" readonly>{{ request.form['download-log'] }}</textarea>
+                      class="form-control" rows='40' readonly>{{ request.form['download-log'] }}</textarea>
         </div>
 {% endblock %}
