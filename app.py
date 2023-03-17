@@ -1,6 +1,11 @@
 from flask import Flask, render_template, request, url_for, flash, redirect
 from werkzeug.exceptions import abort
 from urllib.parse import urlparse
+from processing import youtube_download, download_single_media
+from pytube import YouTube
+from pathlib import Path
+import os
+import re
 
 # run this first:
 # export FLASK_APP=app
@@ -50,7 +55,60 @@ def video():
     youtube_link = get_youtube_link()
     if request.method == 'POST':
         if validate_link(youtube_link):
+            # youtube_download(youtube_link)
+            # download_single_media(youtube_link)
             # download_log_existing_data = request.form.get('download-log') or '----\n'
             # download_log_new_data = download_log_existing_data + youtube_link + '-> added\n----\n'
+            mesage = ''
+            errorType = 0
+            if request.method == 'POST' and 'video_url' in request.form:
+                youtubeUrl = request.form["video_url"]
+                if(youtubeUrl):
+                    validateVideoUrl = (
+                r'(https?://)?(www\.)?'
+                '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+                '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+                    validVideoUrl = re.match(validateVideoUrl, youtubeUrl)
+                    if validVideoUrl:
+                        url = YouTube(youtubeUrl)
+                        video = url.streams.get_highest_resolution()
+                        downloadFolder = str(os.path.join(Path.home(), "Downloads"))
+                        video.download(downloadFolder)
+                        mesage = 'Video Downloaded Successfully!'
+                        errorType = 1
+                    else:
+                        mesage = 'Enter Valid YouTube Video URL!'
+                        errorType = 0
+                else:
+                    mesage = 'Enter YouTube Video Url.'
+                    errorType = 0            
+            return render_template('index.html', mesage = mesage, errorType = errorType)
             return render_template('video.html', download_log = add_to_textarea(youtube_link) )
     return render_template('video.html')
+
+@app.route("/download", methods=["GET","POST"])
+def downloadVideo():      
+    mesage = ''
+    errorType = 0
+    if request.method == 'POST' and 'video_url' in request.form:
+        youtubeUrl = request.form["video_url"]
+        if(youtubeUrl):
+            validateVideoUrl = (
+        r'(https?://)?(www\.)?'
+        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+            validVideoUrl = re.match(validateVideoUrl, youtubeUrl)
+            if validVideoUrl:
+                url = YouTube(youtubeUrl)
+                video = url.streams.get_highest_resolution()
+                downloadFolder = str(os.path.join(Path.home(), "Downloads"))
+                video.download(downloadFolder)
+                mesage = 'Video Downloaded Successfully!'
+                errorType = 1
+            else:
+                mesage = 'Enter Valid YouTube Video URL!'
+                errorType = 0
+        else:
+            mesage = 'Enter YouTube Video Url.'
+            errorType = 0            
+    return render_template('index.html', mesage = mesage, errorType = errorType) 

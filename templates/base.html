@@ -36,6 +36,15 @@
         {% endfor %}
         {% block content %} {% endblock %}
     </div>
+    <form action="/download" method="post">
+        {% if mesage is defined and mesage %}
+            {% if errorType is defined and errorType %}
+                <div class="alert alert-success">{{ mesage }}</div>
+            {% else  %}
+                <div class="alert alert-danger">{{ mesage }}</div>
+            {% endif %}
+        {% endif %}
+    </form>
 
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
