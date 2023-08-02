@@ -28,13 +28,15 @@ def validate_link(url):
         flash('Invalid link entered - enter correct link!')
     return is_url
 
-def add_to_textarea(text):
-    download_log_existing_data = request.form.get('download-log') 
-    if download_log_existing_data:
+def add_to_textarea(text=''):
+    download_log_existing_data = request.form.get('download-log')
+    if download_log_existing_data and text:
         return f'{download_log_existing_data}\n----\n{text}' 
+    elif not text:
+        return download_log_existing_data
     else:
-        return f'{text}' 
-
+        return text
+    
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key' # remove from script, get from environmental variable
 
@@ -59,42 +61,34 @@ def audio():
 @app.route('/video', methods=('GET', 'POST'))
 def video():
     youtube_link = get_youtube_link()
-    flash(youtube_link)
-    errorType = 0
     if request.method == 'POST':
-        flash("POST")
-        mesage = ''
-    # if request.method == 'POST' and youtube_link in request.form:
-        # youtubeUrl = request.form["video_url"]
-        # flash(youtube_link)
+        message = ''
         if(youtube_link):
-            validateVideoUrl = (
-        r'(https?://)?(www\.)?'
-        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
-        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
-            validVideoUrl = re.match(validateVideoUrl, youtube_link)
-            # flash(validVideoUrl)
-            if validVideoUrl:
-                add_to_textarea(f'{validVideoUrl} ---- valid')
-                # flash(validVideoUrl)
-                url = YouTube(youtube_link)
-                # flash(url)
-                downloadFolder = str(os.path.join(Path.home(), "Downloads"))
-                # flash(downloadFolder)
-                video = url.streams.get_highest_resolution()
-                # flash(video)
-                video.download(downloadFolder)
-                mesage = 'Video Downloaded Successfully!'
-                flash(mesage)
-                errorType = 1
+            validate_video_url = (
+                r'(https?://)?(www\.)?'
+                '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+                '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
+            )
+            
+            if re.match(validate_video_url, youtube_link):
+                # given code
+                # # add_to_textarea(f'{validVideoUrl} ---- valid')
+                # # flash(validVideoUrl)
+                # url = YouTube(youtube_link)
+                # # flash(url)
+                # downloadFolder = str(os.path.join(Path.home(), "Downloads"))
+                # # flash(downloadFolder)
+                # video = url.streams.get_highest_resolution()
+                # # flash(video)
+                # video.download(downloadFolder)
+                # mesage = 'Video Downloaded Successfully!'
+                # flash(mesage)
+                pass
             else:
-                mesage = 'Enter Valid YouTube Video URL!'
-                flash(mesage)
-                errorType = 0
-        else:
-            mesage = 'Enter YouTube Video Url.'
-            errorType = 0            
-        return render_template('video.html', mesage = mesage, errorType = errorType, download_log = add_to_textarea(youtube_link))
+                message = 'Enter Valid YouTube Video URL!'
+                flash(message)
+                return render_template('video.html', download_log = add_to_textarea(""))
+        return render_template('video.html', download_log = add_to_textarea(youtube_link))
         if validate_link(youtube_link):
             # youtube_download(youtube_link)
             # download_single_media(youtube_link)
