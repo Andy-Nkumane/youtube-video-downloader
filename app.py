@@ -11,6 +11,9 @@ import re
 # export FLASK_APP=app
 # export FLASK_DEBUG=True
 
+# to run app use:
+# flask --app app run
+
 def get_youtube_link():
     if request.method == 'POST':
         youtube_link = request.form['youtube-link']
