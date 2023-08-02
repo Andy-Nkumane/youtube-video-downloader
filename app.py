@@ -17,8 +17,8 @@ import re
 def get_youtube_link():
     if request.method == 'POST':
         youtube_link = request.form['youtube-link']
-        # if not youtube_link:
-        #     flash("YouTube link is required!")
+        if not youtube_link:
+            flash("YouTube link is required!")
         return youtube_link
     
 def validate_link(url):
@@ -30,7 +30,10 @@ def validate_link(url):
 
 def add_to_textarea(text):
     download_log_existing_data = request.form.get('download-log') 
-    return f'{download_log_existing_data}\n----\n{text}' 
+    if download_log_existing_data:
+        return f'{download_log_existing_data}\n----\n{text}' 
+    else:
+        return f'{text}' 
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key' # remove from script, get from environmental variable
@@ -56,29 +59,37 @@ def audio():
 @app.route('/video', methods=('GET', 'POST'))
 def video():
     youtube_link = get_youtube_link()
-    if request.method == 'POST':
-        mesage = ''
+    flash(youtube_link)
     errorType = 0
-    if request.method == 'POST' and 'video_url' in request.form:
-        youtubeUrl = request.form["video_url"]
-        if(youtubeUrl):
+    if request.method == 'POST':
+        flash("POST")
+        mesage = ''
+    # if request.method == 'POST' and youtube_link in request.form:
+        # youtubeUrl = request.form["video_url"]
+        # flash(youtube_link)
+        if(youtube_link):
             validateVideoUrl = (
         r'(https?://)?(www\.)?'
         '(youtube|youtu|youtube-nocookie)\.(com|be)/'
         '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
-            validVideoUrl = re.match(validateVideoUrl, youtubeUrl)
+            validVideoUrl = re.match(validateVideoUrl, youtube_link)
+            # flash(validVideoUrl)
             if validVideoUrl:
-                add_to_textarea(validVideoUrl)
-                url = YouTube(youtubeUrl)
-                video = url.streams.get_highest_resolution()
+                add_to_textarea(f'{validVideoUrl} ---- valid')
+                # flash(validVideoUrl)
+                url = YouTube(youtube_link)
+                # flash(url)
                 downloadFolder = str(os.path.join(Path.home(), "Downloads"))
-                flash(downloadFolder)
+                # flash(downloadFolder)
+                video = url.streams.get_highest_resolution()
+                # flash(video)
                 video.download(downloadFolder)
                 mesage = 'Video Downloaded Successfully!'
                 flash(mesage)
                 errorType = 1
             else:
                 mesage = 'Enter Valid YouTube Video URL!'
+                flash(mesage)
                 errorType = 0
         else:
             mesage = 'Enter YouTube Video Url.'
@@ -150,4 +161,6 @@ def video():
 app.route('/download')
 def download():
     path = 'samplefile.pdf'
-    return send_file(path, as_attachment=True)
+    return render_template('index.html')
+    # return send_file(path, as_attachment=True)
+    # return send_file('/home/wethinkcode/Downloads/Pecha Kucha 3_ Git.pdf', attachment_filename='Pecha Kucha 3_ Git(flask).pdf')
