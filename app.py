@@ -24,9 +24,19 @@ def get_youtube_link():
 def validate_link(url):
     parse_result = urlparse(url)
     is_url = all([parse_result.scheme, parse_result.netloc, parse_result.path])
+    validate_video_url = (
+                r'(https?://)?(www\.)?'
+                '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+                '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
+            )
+    is_youtube_link = re.match(validate_video_url, url)
+    if url == "":
+        return False
     if not is_url:
         flash('Invalid link entered - enter correct link!')
-    return is_url
+    elif not is_youtube_link:
+        flash('Invalid YouTube link entered - enter correct YouTube link!')
+    return is_url and is_youtube_link
 
 def add_to_textarea(text=''):
     download_log_existing_data = request.form.get('download-log')
@@ -62,32 +72,32 @@ def audio():
 def video():
     youtube_link = get_youtube_link()
     if request.method == 'POST':
-        message = ''
-        if(youtube_link):
-            validate_video_url = (
-                r'(https?://)?(www\.)?'
-                '(youtube|youtu|youtube-nocookie)\.(com|be)/'
-                '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
-            )
+        # message = ''
+        # if(youtube_link):
+            # validate_video_url = (
+            #     r'(https?://)?(www\.)?'
+            #     '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+            #     '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
+            # )
             
-            if re.match(validate_video_url, youtube_link):
-                # given code
-                # # add_to_textarea(f'{validVideoUrl} ---- valid')
-                # # flash(validVideoUrl)
-                # url = YouTube(youtube_link)
-                # # flash(url)
-                # downloadFolder = str(os.path.join(Path.home(), "Downloads"))
-                # # flash(downloadFolder)
-                # video = url.streams.get_highest_resolution()
-                # # flash(video)
-                # video.download(downloadFolder)
-                # mesage = 'Video Downloaded Successfully!'
-                # flash(mesage)
-                pass
-            else:
-                message = 'Enter Valid YouTube Video URL!'
-                flash(message)
-                return render_template('video.html', download_log = add_to_textarea(""))
+        if validate_link(youtube_link):
+            # given working code - doesn't show download progress
+            # # add_to_textarea(f'{validVideoUrl} ---- valid')
+            # # flash(validVideoUrl)
+            # url = YouTube(youtube_link)
+            # # flash(url)
+            # downloadFolder = str(os.path.join(Path.home(), "Downloads"))
+            # # flash(downloadFolder)
+            # video = url.streams.get_highest_resolution()
+            # # flash(video)
+            # video.download(downloadFolder)
+            # mesage = 'Video Downloaded Successfully!'
+            # flash(mesage)
+            pass
+        else:
+            # message = 'Enter Valid YouTube Video URL!'
+            # flash(message)
+            return render_template('video.html', download_log = add_to_textarea(""))
         return render_template('video.html', download_log = add_to_textarea(youtube_link))
         if validate_link(youtube_link):
             # youtube_download(youtube_link)
