@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for, flash, redirect, send_file
+from flask import Flask, render_template, request, url_for, flash, redirect, send_file, stream_with_context
 # from werkzeug.exceptions import abort
 from urllib.parse import urlparse
 # from processing import youtube_download, download_single_media
@@ -7,7 +7,7 @@ from pytube import Playlist
 from pytube.cli import on_progress
 import os
 import pytube
-# from pathlib import Path
+from pathlib import Path
 # import os
 import re
 
@@ -130,6 +130,7 @@ def add_to_textarea(text=''):
         return download_log_existing_data
     else:
         return text
+    # return app.response_class(stream_with_context(add_to_textarea(text)))
     
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key' # remove from script, get from environmental variable
@@ -155,6 +156,15 @@ def audio():
 @app.route('/video', methods=('GET', 'POST'))
 def video():
     youtube_link = get_youtube_link()
+    # yield render_template('video.html', download_log = add_to_textarea("Testing"))
+    # def generate():
+    #     for i in range(4):
+    #         yield f'Hello {i}'
+    #         # yield request.args['name']
+    #         yield '!'
+        # flash('done')
+    # return app.response_class(stream_with_context(generate()))
+    # return app.response_class(generate())
     if request.method == 'POST':
         # message = ''
         # if(youtube_link):
@@ -163,26 +173,28 @@ def video():
             #     '(youtube|youtu|youtube-nocookie)\.(com|be)/'
             #     '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
             # )
-            
+        text = ""
         if validate_link(youtube_link):
             # given working code - doesn't show download progress
-            # # add_to_textarea(f'{validVideoUrl} ---- valid')
-            # # flash(validVideoUrl)
-            # url = YouTube(youtube_link)
-            # # flash(url)
+            # add_to_textarea(f'{validVideoUrl} ---- valid')
+            # flash(validVideoUrl)
+            url = YouTube(youtube_link, on_progress_callback=on_progress)
+            # flash(url)
             # downloadFolder = str(os.path.join(Path.home(), "Downloads"))
-            # # flash(downloadFolder)
+            # flash(downloadFolder)
             # video = url.streams.get_highest_resolution()
-            # # flash(video)
+            # flash(video)
+            # flash('downloading...')
             # video.download(downloadFolder)
-            # mesage = 'Video Downloaded Successfully!'
-            # flash(mesage)
+            message = 'Video Downloaded Successfully!'
+            # flash(message)
+            text = f"{url.title} - downloaded"
             pass
         else:
-            # message = 'Enter Valid YouTube Video URL!'
+            message = 'Enter Valid YouTube Video URL!'
             # flash(message)
-            return render_template('video.html', download_log = add_to_textarea(""))
-        return render_template('video.html', download_log = add_to_textarea(youtube_link))
+            return render_template('video.html', download_log = add_to_textarea(text))
+        return render_template('video.html', download_log = add_to_textarea(text), errorType=1,message=message)
         if validate_link(youtube_link):
             # youtube_download(youtube_link)
             # download_single_media(youtube_link)
