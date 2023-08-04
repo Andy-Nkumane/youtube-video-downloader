@@ -37,11 +37,11 @@
         {% block content %} {% endblock %}
     </div>
     <form action="/download" method="post">
-        {% if mesage is defined and mesage %}
+        {% if message is defined and message %}
             {% if errorType is defined and errorType %}
-                <div class="alert alert-success">{{ mesage }}</div>
+                <div class="alert alert-success">{{ message }}</div>
             {% else  %}
-                <div class="alert alert-danger">{{ mesage }}</div>
+                <div class="alert alert-danger">{{ message }}</div>
             {% endif %}
         {% endif %}
     </form>
