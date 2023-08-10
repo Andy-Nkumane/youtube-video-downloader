@@ -31,9 +31,24 @@
         </div>
     </nav>
     <div class="container">
-        {% for message in get_flashed_messages() %}
-            <div class="alert alert-danger">{{ message }}</div>
-        {% endfor %}
+        {% with info_flash = get_flashed_messages(category_filter=["info"]), warning_flash = get_flashed_messages(category_filter=["warning"]) %}
+            {% if info_flash %}
+                {% for message in get_flashed_messages() %}
+                    <div class="alert alert-info">{{ message }}</div>
+                    {% endfor %}
+            {% endif %}
+            {% if warning_flash %}
+                {% for message in get_flashed_messages() %}
+                    <div class="alert alert-warning">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            {% if not info_flash and not warning_flash %}
+                {% for message in get_flashed_messages() %}
+                    <div class="alert alert-danger">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         {% block content %} {% endblock %}
     </div>
     <form action="/download" method="post">
