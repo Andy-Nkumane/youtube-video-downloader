@@ -23,25 +23,31 @@ COMPLETE = "\033[92m" # green
 FAIL = "\033[91m" # red
 EXISTS = "\033[93m" # yellow
 END_COLOR = "\033[0m" # stop
+DOWNLOAD_FOLDER = str(os.path.join(Path.home(), "Downloads"))
 
 def youtube_download(url, type="video"):
-    video_download_directory(f'{type}-downloads')
+    download_directory(f'{DOWNLOAD_FOLDER}/{type}-downloads')
     try:
         playlist = Playlist(url)
-        download_playlist(playlist, type)
+        text = download_playlist(playlist, type)
+        return text
     except KeyError:
-        download_single_media(url, type) 
+        text = download_single_media(url, type) 
+        return text
     finally:
-        os.system('spd-say "download complete"')   
+        os.system('spd-say "download complete"')
 
-def video_download_directory(directory_name):
-    if os.path.isdir(directory_name):
-        print(f'{EXISTS}File exists: {directory_name}{END_COLOR}')
+def download_directory(directory_name):
+    if os.path.isdir(f"{directory_name}"):
+        # print(f'{EXISTS}File exists: {directory_name}{END_COLOR}')
+        text = f'{EXISTS}File exists: {directory_name}{END_COLOR}'
     else:
-        print(f'Creating file: {directory_name}')
+        # print(f'Creating file: {directory_name}')
+        text = f'Creating file: {directory_name}'
         os.mkdir(directory_name)
-    print('--------')
+    # print('--------')
     os.chdir(directory_name)
+    return text + "\n--------"
 
 def type_video(yt):
     video_resolution = [stream.resolution for stream in yt.streams.filter(progressive=True)]
@@ -49,27 +55,33 @@ def type_video(yt):
         res = '720p'
     else:
         res = '360p'
-    print(f"resolution: {res}")
-    return yt.streams.filter(file_extension='mp4', res=res).first()
+    # print(f"resolution: {res}")
+    text = f"resolution: {res}"
+    return yt.streams.filter(file_extension='mp4', res=res).first(), f"resolution: {res}", text
 
 def type_audio(yt):
     abr = [stream.abr for stream in yt.streams.filter(file_extension='mp4', progressive=False, only_audio=True)][-1]
-    print(f"abr = {abr}")
-    return yt.streams.filter(file_extension='mp4', only_audio=True, abr=abr).first()
+    # print(f"abr = {abr}")
+    text = f"abr = {abr}"
+    return yt.streams.filter(file_extension='mp4', only_audio=True, abr=abr).first(), text
 
 def download_playlist(playlist, type="video"):
     playlist_title = playlist.title.replace('|', '--')
-    video_download_directory(playlist_title)
-    print(f'Downloading playlist: {playlist_title}')
-    print('------')
+    download_directory(playlist_title)
+    # print(f'Downloading playlist: {playlist_title}')
+    downloading_text = f'Downloading playlist: {playlist_title}\n------'
+    # print('------')
+    single_media_text = ""
     for index, url in enumerate(playlist.video_urls, 1): 
         if index < 201:# limiting playlists to 200 as music playlists go on forever
             print(index)
-            download_single_media(url, type)
+            single_media_text += download_single_media(url, type) + "\n"
         else:
             break
-    print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
+    # print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
+    success_text = f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}'
     os.chdir('..')
+    return f"{downloading_text}\n{single_media_text.strip()}\n{success_text}"
 
 def download_single_media(url, type="video"):
     type = type.lower()
@@ -78,24 +90,34 @@ def download_single_media(url, type="video"):
     try:
         yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
     except pytube.exceptions.PytubeError:
-        print(f'{FAIL}Failed downloading {type}: API issue{END_COLOR}')
-        return
+        # print(f'{FAIL}Failed downloading {type}: API issue{END_COLOR}')
+        fail_text = f'{FAIL}Failed downloading {type}: API issue{END_COLOR}'
+        return fail_text + "\n----"
+        # return
 
     if os.path.isfile(f'{yt_title}.mp4'):
-        print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
+        # print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
+        exists_text = f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}'
+        return exists_text
     else:
-        print(f'Downloading {type}: {yt_title}')
+        # print(f'Downloading {type}: {yt_title}')
+        downloading_text = f'Downloading {type}: {yt_title}'
         try:
             if type == "video":
-                stream = type_video(yt)
+                stream, type_text = type_video(yt)
             else:
-                stream = type_audio(yt)
-            print(f"file size: {stream.filesize /(1000*1000):.2f}MB")
+                stream, type_text = type_audio(yt)
+            # print(f"file size: {stream.filesize /(1000*1000):.2f}MB")
+            file_size_text = f"file size: {stream.filesize /(1000*1000):.2f}MB"
             stream.download()
-            print(f'{COMPLETE}Complete downloading {type}: {yt_title}{END_COLOR}')
+            # print(f'{COMPLETE}Complete downloading {type}: {yt_title}{END_COLOR}')
+            success_text = f'{COMPLETE}Complete downloading {type}: {yt_title}{END_COLOR}'
         except:
-            print(f'{FAIL}Failed downloading {type}: {yt_title}{END_COLOR}')
-    print('----')
+            # print(f'{FAIL}Failed downloading {type}: {yt_title}{END_COLOR}')
+            fail_text = f'{FAIL}Failed downloading {type}: {yt_title}{END_COLOR}'
+            return fail_text + "\n----"
+    # print('----')
+    return f"{downloading_text}\n{type_text}\n{file_size_text}\n{success_text}"
 
 # flask functions
 def get_youtube_link():
@@ -146,12 +168,20 @@ def about():
 @app.route('/audio', methods=('GET', 'POST'))
 def audio():
     youtube_link = get_youtube_link()
+    # text = ""
     if request.method == 'POST':
         if validate_link(youtube_link):
             # download_log_existing_data = request.form.get('download-log') or '----\n'
             # download_log_new_data = download_log_existing_data + youtube_link + '-> added\n----\n'
-            return render_template('audio.html', download_log = add_to_textarea(youtube_link))
-    return render_template('audio.html')
+            text = youtube_download(youtube_link)
+            message = 'Video Downloaded Successfully!'
+            # flash(message)
+            # text = f"{url.title} - downloaded"
+            # pass
+        else:
+            message = 'Enter Valid YouTube Video URL!'
+            return render_template('audio.html', errorType=0,message=message)
+    return render_template('audio.html', download_log = add_to_textarea(text), errorType=1,message=message)
 
 @app.route('/video', methods=('GET', 'POST'))
 def video():
@@ -173,12 +203,12 @@ def video():
             #     '(youtube|youtu|youtube-nocookie)\.(com|be)/'
             #     '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
             # )
-        text = ""
+        # text = ""
         if validate_link(youtube_link):
             # given working code - doesn't show download progress
             # add_to_textarea(f'{validVideoUrl} ---- valid')
             # flash(validVideoUrl)
-            url = YouTube(youtube_link, on_progress_callback=on_progress)
+            # url = YouTube(youtube_link, on_progress_callback=on_progress)
             # flash(url)
             # downloadFolder = str(os.path.join(Path.home(), "Downloads"))
             # flash(downloadFolder)
@@ -186,14 +216,15 @@ def video():
             # flash(video)
             # flash('downloading...')
             # video.download(downloadFolder)
+            text = youtube_download(youtube_link)
             message = 'Video Downloaded Successfully!'
             # flash(message)
-            text = f"{url.title} - downloaded"
-            pass
+            # text = f"{url.title} - downloaded"
+            # pass
         else:
             message = 'Enter Valid YouTube Video URL!'
             # flash(message)
-            return render_template('video.html', download_log = add_to_textarea(text))
+            return render_template('video.html', errorType=0,message=message)
         return render_template('video.html', download_log = add_to_textarea(text), errorType=1,message=message)
         if validate_link(youtube_link):
             # youtube_download(youtube_link)
