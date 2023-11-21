@@ -57,7 +57,7 @@ def type_video(yt):
         res = '360p'
     # print(f"resolution: {res}")
     text = f"resolution: {res}"
-    return yt.streams.filter(file_extension='mp4', res=res).first(), f"resolution: {res}", text
+    return yt.streams.filter(file_extension='mp4', res=res).first(), text
 
 def type_audio(yt):
     abr = [stream.abr for stream in yt.streams.filter(file_extension='mp4', progressive=False, only_audio=True)][-1]
