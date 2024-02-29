@@ -74,7 +74,5 @@ youtube_download("https://www.youtube.com/watch?v=UmljXZIypDc&list=PL-osiE80TeTt
 ## **More stuff that would be nice**
 
 * Downloading media from:
-    * youtube music - works
-    * youtube shorts - works
-* ask user to overwrite the existing file or to skip
-* give user option to select video resolution
+    * youtube music
+    * youtube shorts
