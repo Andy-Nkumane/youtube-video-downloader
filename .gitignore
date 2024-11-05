@@ -1,3 +1,5 @@
 *.mp4
 video-downloads/
 audio-downloads/
+managed_context/
+test_suite_analysis/
