@@ -109,17 +109,23 @@ def download_single_media(
         title = _safe_filename(yt.title)
         destination = output_directory / f"{title}.mp4"
 
-        if destination.is_file():
+        existing_files = [
+            output_directory / f"{title}{suffix}" for suffix in (".mp4", ".m4a", ".mp3")
+        ]
+        if any(path.is_file() for path in existing_files):
             print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
             return True
 
         print(f"Downloading {media_type}: {title}")
-        stream = type_video(yt) if media_type == "video" else type_audio(yt)
-        print(f"file size: {stream.filesize / 1_000_000:.2f} MB")
-        if media_type == "video" and not stream.is_progressive:
-            _download_adaptive_video(yt.watch_url, destination)
+        if media_type == "audio":
+            _download_with_ytdlp(yt.watch_url, destination, media_type)
         else:
-            stream.download(output_path=str(output_directory), filename=destination.name)
+            stream = type_video(yt)
+            print(f"file size: {stream.filesize / 1_000_000:.2f} MB")
+            if not stream.is_progressive:
+                _download_with_ytdlp(yt.watch_url, destination, media_type)
+            else:
+                stream.download(output_path=str(output_directory), filename=destination.name)
     except (PytubeFixError, OSError, RuntimeError) as error:
         print(f"{FAIL}Failed downloading {media_type}: {error}{END_COLOR}")
         return False
@@ -128,8 +134,8 @@ def download_single_media(
     return True
 
 
-def _download_adaptive_video(url: str, destination: Path) -> None:
-    """Download and merge adaptive streams with yt-dlp and bundled FFmpeg."""
+def _download_with_ytdlp(url: str, destination: Path, media_type: str) -> None:
+    """Download protected/adaptive streams with yt-dlp and bundled FFmpeg."""
     try:
         import imageio_ffmpeg
         import nodejs_wheel
@@ -140,15 +146,25 @@ def _download_adaptive_video(url: str, destination: Path) -> None:
             "Run: python -m pip install -r requirements.txt"
         ) from error
 
-    print("This video uses separate video and audio streams; downloading both.")
+    if media_type == "video":
+        print("This video uses separate video and audio streams; downloading both.")
+        format_selector = (
+            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+            "best[height<=720][ext=mp4]"
+        )
+    else:
+        print("Downloading the best available audio stream.")
+        format_selector = "bestaudio[ext=m4a]/bestaudio"
+
     options = {
-        "format": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
+        "format": format_selector,
         "outtmpl": str(destination.parent / f"{destination.stem}.%(ext)s"),
         "merge_output_format": "mp4",
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
         "js_runtimes": {
             "node": {"path": str(Path(nodejs_wheel.__file__).parent / "node.exe")}
         },
+        "extractor_args": {"youtube": {"player_client": ["web_embedded"]}},
         "noplaylist": True,
         "retries": 10,
         "fragment_retries": 10,

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drop — YouTube Downloader</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <a class="brand" href="/" aria-label="Drop home">
+        <span class="brand-mark">↓</span>
+        <span>DROP</span>
+      </a>
+      <span class="local-badge">LOCAL · PRIVATE</span>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">YOUR MEDIA, YOUR DEVICE</p>
+      <h1>Bring videos<br><em>offline.</em></h1>
+      <p class="intro">Paste a YouTube link. Choose your format. We’ll handle the rest—right here on your machine.</p>
+
+      <form id="download-form" class="download-card">
+        <label for="url">YouTube URL</label>
+        <div class="url-row">
+          <input id="url" name="url" type="url" placeholder="https://youtu.be/..." required autocomplete="off">
+          <button type="button" id="paste-button" class="paste-button">PASTE</button>
+        </div>
+
+        <fieldset>
+          <legend>Format</legend>
+          <label class="format-option">
+            <input type="radio" name="media_type" value="video" checked>
+            <span><strong>MP4</strong><small>Video · up to 720p</small></span>
+          </label>
+          <label class="format-option">
+            <input type="radio" name="media_type" value="audio">
+            <span><strong>AUDIO</strong><small>Best available quality</small></span>
+          </label>
+        </fieldset>
+
+        <button class="submit-button" type="submit"><span>START DOWNLOAD</span><span>→</span></button>
+        <p id="form-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="status-card" class="status-card" hidden aria-live="polite">
+      <div class="status-heading">
+        <div><span id="status-dot" class="status-dot"></span><span id="status-label">PREPARING</span></div>
+        <span id="progress-label">0%</span>
+      </div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+      <p id="status-message">Connecting to YouTube...</p>
+      <div id="file-links" class="file-links"></div>
+      <details><summary>Activity log</summary><pre id="activity-log"></pre></details>
+    </section>
+
+    <footer>Downloads stay on this computer. Only download media you have permission to use.</footer>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
