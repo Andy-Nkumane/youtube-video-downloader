@@ -42,7 +42,7 @@ def public_job(job: dict) -> dict:
         "title": job["title"],
         "progress": job["progress"],
         "files": job["files"],
-        "logs": list(job["logs"])[-20:],
+        "items": job["items"],
     }
 
 
@@ -102,24 +102,51 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
             )
             display_message = line
             title_match = re.match(r"Downloading (?:video|audio): (.+)", line)
+            existing_match = re.match(r"Already downloaded: (.+)", line)
             destination_match = re.search(r"\[download\] Destination: (.+)", line)
+            playlist_item_match = re.search(r"\[download\] Downloading item (\d+) of (\d+)", line)
             if size_match:
                 percent, total, unit, speed, eta = size_match.groups()
                 downloaded = float(total) * float(percent) / 100
-                display_message = f"{downloaded:.2f} {unit} of {total} {unit}"
+                display_message = f"{downloaded:.2f}{unit} of {total}{unit}"
                 if speed:
                     display_message += f" at {speed.strip()}"
                 if eta:
-                    display_message += f" · ETA {eta}"
+                    display_message += f" ETA {eta}"
             with jobs_lock:
                 job = jobs[job_id]
                 job["logs"].append(line)
                 job["message"] = display_message
+                if playlist_item_match:
+                    _finish_current_item(job, "success")
+                    item_number = int(playlist_item_match.group(1))
+                    job["items"].append(
+                        {
+                            "title": f"Playlist item {item_number}",
+                            "status": "downloading",
+                            "size": None,
+                        }
+                    )
+                    job["current_item"] = len(job["items"]) - 1
                 if title_match:
                     job["title"] = title_match.group(1)
+                    _set_current_item_title(job, job["title"])
+                elif existing_match:
+                    job["title"] = existing_match.group(1)
+                    _set_current_item_title(job, job["title"])
                 elif destination_match:
                     filename = Path(destination_match.group(1)).name
                     job["title"] = re.sub(r"\.f\d+$", "", Path(filename).stem)
+                    _set_current_item_title(job, job["title"])
+                if "ERROR:" in line or "Failed downloading" in line:
+                    _finish_current_item(job, "failed")
+                if size_match and job["current_item"] is not None:
+                    job["items"][job["current_item"]]["size"] = f"{total}{unit}"
+                file_size_match = re.match(r"file size:\s+(\d+(?:\.\d+)?)\s+MB", line)
+                if file_size_match and job["current_item"] is not None:
+                    job["items"][job["current_item"]]["size"] = (
+                        f"{file_size_match.group(1)} MB"
+                    )
                 if progress_match:
                     job["progress"] = float(progress_match.group(1))
 
@@ -133,14 +160,17 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
         job["process"] = None
         failed_in_log = any("Failed downloading" in line for line in job["logs"])
         if job["cancel_requested"]:
+            _finish_current_item(job, "failed")
             job["status"] = "cancelled"
             job["message"] = "Download cancelled"
         elif return_code == 0 and not failed_in_log:
+            _finish_current_item(job, "success")
             job["status"] = "complete"
             job["progress"] = 100
             job["message"] = "Download complete"
             job["files"] = [str(path.relative_to(BASE_DIR)).replace("\\", "/") for path in completed_files]
         else:
+            _finish_current_item(job, "failed")
             job["status"] = "failed"
             job["message"] = job["logs"][-1] if job["logs"] else "Download failed"
 
@@ -170,6 +200,8 @@ def start_download():
             "title": "Waiting for media information...",
             "progress": 0,
             "files": [],
+            "items": [],
+            "current_item": None,
             "logs": deque(maxlen=100),
             "process": None,
             "cancel_requested": False,
@@ -202,6 +234,22 @@ def cancel_download(job_id: str):
     if process is not None and process.poll() is None:
         terminate_process(process)
     return jsonify(public_job(job))
+
+
+def _set_current_item_title(job: dict, title: str) -> None:
+    if job["current_item"] is None:
+        job["items"].append({"title": title, "status": "downloading", "size": None})
+        job["current_item"] = len(job["items"]) - 1
+    else:
+        job["items"][job["current_item"]]["title"] = title
+
+
+def _finish_current_item(job: dict, status: str) -> None:
+    index = job["current_item"]
+    if index is not None and job["items"][index]["status"] == "downloading":
+        job["items"][index]["status"] = status
+    if status in {"success", "failed"}:
+        job["current_item"] = None
 
 
 def terminate_process(process: subprocess.Popen) -> None:

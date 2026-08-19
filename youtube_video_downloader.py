@@ -107,6 +107,7 @@ def download_playlist_with_ytdlp(
                 "merge_output_format": "mp4",
                 "noplaylist": False,
                 "playlistend": MAX_PLAYLIST_ITEMS,
+                "match_filter": _skip_existing_filter(output_directory, media_type),
             }
         )
         if media_type == "audio":
@@ -145,8 +146,10 @@ def download_single_media(
 
         existing_suffixes = (".mp3",) if media_type == "audio" else (".mp4",)
         existing_files = [output_directory / f"{title}{suffix}" for suffix in existing_suffixes]
-        if any(path.is_file() for path in existing_files):
+        existing_file = next((path for path in existing_files if path.is_file()), None)
+        if existing_file is not None:
             print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
+            print(f"file size: {existing_file.stat().st_size / 1_000_000:.2f} MB")
             return True
 
         print(f"Downloading {media_type}: {title}")
@@ -226,6 +229,25 @@ def _audio_postprocessors() -> list[dict]:
             "preferredquality": "192",
         }
     ]
+
+
+def _skip_existing_filter(output_directory: Path, media_type: str):
+    """Skip playlist entries whose title already exists in the output tree."""
+    expected_extension = ".mp3" if media_type == "audio" else ".mp4"
+
+    def match_filter(info: dict, *, incomplete: bool = False):
+        if incomplete or not info.get("title"):
+            return None
+        title = _safe_filename(info["title"])
+        for path in output_directory.rglob(f"*{expected_extension}"):
+            existing_title = re.sub(r"^\d+\s+-\s+", "", path.stem)
+            if existing_title.casefold() == title.casefold():
+                print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
+                print(f"file size: {path.stat().st_size / 1_000_000:.2f} MB")
+                return f"{title} already exists"
+        return None
+
+    return match_filter
 
 
 def _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel) -> dict:

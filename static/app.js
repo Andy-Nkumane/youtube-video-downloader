@@ -6,10 +6,11 @@ const statusLabel = document.querySelector('#status-label');
 const statusMessage = document.querySelector('#status-message');
 const progressBar = document.querySelector('#progress-bar');
 const progressLabel = document.querySelector('#progress-label');
-const activityLog = document.querySelector('#activity-log');
 const fileLinks = document.querySelector('#file-links');
 const mediaTitle = document.querySelector('#media-title');
 const cancelButton = document.querySelector('#cancel-button');
+const mediaList = document.querySelector('#media-list');
+const resultsCount = document.querySelector('#results-count');
 let activeJobId = null;
 
 document.querySelector('#paste-button').addEventListener('click', async () => {
@@ -27,7 +28,27 @@ function renderJob(job) {
   mediaTitle.textContent = job.title;
   progressBar.style.width = `${job.progress}%`;
   progressLabel.textContent = `${Math.round(job.progress)}%`;
-  activityLog.textContent = job.logs.join('\n');
+  resultsCount.textContent = `${job.items.length} ${job.items.length === 1 ? 'item' : 'items'}`;
+  if (job.items.length) {
+    mediaList.replaceChildren(...job.items.map((item) => {
+      const row = document.createElement('div');
+      row.className = 'media-row';
+      const title = document.createElement('span');
+      title.className = 'media-row-title';
+      title.textContent = item.title;
+      const status = document.createElement('span');
+      status.className = `media-status ${item.status}`;
+      status.textContent = item.status.toUpperCase();
+      const meta = document.createElement('span');
+      meta.className = 'media-row-meta';
+      const size = document.createElement('span');
+      size.className = 'media-size';
+      size.textContent = item.size || 'Size pending';
+      meta.append(size, status);
+      row.append(title, meta);
+      return row;
+    }));
+  }
 
   cancelButton.hidden = !['queued', 'running'].includes(job.status);
   if (job.status === 'complete') {
@@ -71,6 +92,8 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   errorBox.textContent = '';
   fileLinks.replaceChildren();
+  mediaList.innerHTML = '<p class="empty-results">Preparing media list...</p>';
+  resultsCount.textContent = '0 items';
   submitButton.disabled = true;
   submitButton.querySelector('span').textContent = 'STARTING...';
 
