@@ -1,5 +1,6 @@
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -38,6 +39,7 @@ def public_job(job: dict) -> dict:
         "status": job["status"],
         "media_type": job["media_type"],
         "message": job["message"],
+        "title": job["title"],
         "progress": job["progress"],
         "files": job["files"],
         "logs": list(job["logs"])[-20:],
@@ -59,10 +61,15 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
     ]
 
     with jobs_lock:
-        jobs[job_id]["status"] = "running"
+        if jobs[job_id]["cancel_requested"]:
+            jobs[job_id]["status"] = "cancelled"
+            jobs[job_id]["message"] = "Download cancelled"
+            return
         jobs[job_id]["message"] = "Connecting to YouTube..."
 
-    creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    creation_flags = 0
+    if os.name == "nt":
+        creation_flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     process = subprocess.Popen(
         command,
         cwd=BASE_DIR,
@@ -72,7 +79,14 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
         encoding="utf-8",
         errors="replace",
         creationflags=creation_flags,
+        start_new_session=os.name != "nt",
     )
+    with jobs_lock:
+        jobs[job_id]["process"] = process
+        jobs[job_id]["status"] = "running"
+        cancel_immediately = jobs[job_id]["cancel_requested"]
+    if cancel_immediately:
+        terminate_process(process)
 
     assert process.stdout is not None
     for raw_line in iter(process.stdout.readline, ""):
@@ -87,6 +101,8 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
                 line,
             )
             display_message = line
+            title_match = re.match(r"Downloading (?:video|audio): (.+)", line)
+            destination_match = re.search(r"\[download\] Destination: (.+)", line)
             if size_match:
                 percent, total, unit, speed, eta = size_match.groups()
                 downloaded = float(total) * float(percent) / 100
@@ -99,6 +115,11 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
                 job = jobs[job_id]
                 job["logs"].append(line)
                 job["message"] = display_message
+                if title_match:
+                    job["title"] = title_match.group(1)
+                elif destination_match:
+                    filename = Path(destination_match.group(1)).name
+                    job["title"] = re.sub(r"\.f\d+$", "", Path(filename).stem)
                 if progress_match:
                     job["progress"] = float(progress_match.group(1))
 
@@ -109,8 +130,12 @@ def run_download(job_id: str, url: str, media_type: str) -> None:
 
     with jobs_lock:
         job = jobs[job_id]
+        job["process"] = None
         failed_in_log = any("Failed downloading" in line for line in job["logs"])
-        if return_code == 0 and not failed_in_log:
+        if job["cancel_requested"]:
+            job["status"] = "cancelled"
+            job["message"] = "Download cancelled"
+        elif return_code == 0 and not failed_in_log:
             job["status"] = "complete"
             job["progress"] = 100
             job["message"] = "Download complete"
@@ -142,9 +167,12 @@ def start_download():
             "status": "queued",
             "media_type": media_type,
             "message": "Queued",
+            "title": "Waiting for media information...",
             "progress": 0,
             "files": [],
             "logs": deque(maxlen=100),
+            "process": None,
+            "cancel_requested": False,
         }
     threading.Thread(target=run_download, args=(job_id, url, media_type), daemon=True).start()
     return jsonify(public_job(jobs[job_id])), 202
@@ -157,6 +185,35 @@ def download_status(job_id: str):
         if job is None:
             abort(404)
         return jsonify(public_job(job))
+
+
+@app.post("/api/downloads/<job_id>/cancel")
+def cancel_download(job_id: str):
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if job is None:
+            abort(404)
+        if job["status"] not in {"queued", "running"}:
+            return jsonify(public_job(job))
+        job["cancel_requested"] = True
+        job["message"] = "Cancelling download..."
+        process = job["process"]
+
+    if process is not None and process.poll() is None:
+        terminate_process(process)
+    return jsonify(public_job(job))
+
+
+def terminate_process(process: subprocess.Popen) -> None:
+    """Terminate a downloader and any FFmpeg/Node child processes it owns."""
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
 
 
 @app.get("/files/<path:filename>")

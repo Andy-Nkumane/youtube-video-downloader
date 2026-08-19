@@ -8,6 +8,9 @@ const progressBar = document.querySelector('#progress-bar');
 const progressLabel = document.querySelector('#progress-label');
 const activityLog = document.querySelector('#activity-log');
 const fileLinks = document.querySelector('#file-links');
+const mediaTitle = document.querySelector('#media-title');
+const cancelButton = document.querySelector('#cancel-button');
+let activeJobId = null;
 
 document.querySelector('#paste-button').addEventListener('click', async () => {
   try {
@@ -21,10 +24,12 @@ function renderJob(job) {
   statusCard.hidden = false;
   statusLabel.textContent = job.status.toUpperCase();
   statusMessage.textContent = job.message;
+  mediaTitle.textContent = job.title;
   progressBar.style.width = `${job.progress}%`;
   progressLabel.textContent = `${Math.round(job.progress)}%`;
   activityLog.textContent = job.logs.join('\n');
 
+  cancelButton.hidden = !['queued', 'running'].includes(job.status);
   if (job.status === 'complete') {
     submitButton.disabled = false;
     submitButton.querySelector('span').textContent = 'START ANOTHER';
@@ -34,7 +39,7 @@ function renderJob(job) {
       link.textContent = `SAVE ${filename.split('/').pop()}`;
       return link;
     }));
-  } else if (job.status === 'failed') {
+  } else if (job.status === 'failed' || job.status === 'cancelled') {
     submitButton.disabled = false;
     submitButton.querySelector('span').textContent = 'TRY AGAIN';
   }
@@ -48,6 +53,19 @@ async function watchJob(jobId) {
     window.setTimeout(() => watchJob(jobId), 1000);
   }
 }
+
+cancelButton.addEventListener('click', async () => {
+  if (!activeJobId) return;
+  cancelButton.disabled = true;
+  cancelButton.textContent = 'CANCELLING...';
+  try {
+    const response = await fetch(`/api/downloads/${activeJobId}/cancel`, { method: 'POST' });
+    renderJob(await response.json());
+  } finally {
+    cancelButton.disabled = false;
+    cancelButton.textContent = 'CANCEL DOWNLOAD';
+  }
+});
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -65,6 +83,7 @@ form.addEventListener('submit', async (event) => {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not start download.');
+    activeJobId = result.id;
     renderJob(result);
     watchJob(result.id);
   } catch (error) {

@@ -34,7 +34,7 @@ def youtube_download(url: str, media_type: str = "video", output_root: str | Pat
     download_directory.mkdir(parents=True, exist_ok=True)
 
     if _is_playlist_url(url):
-        download_playlist(Playlist(url, client=YOUTUBE_CLIENT), media_type, download_directory)
+        download_playlist_with_ytdlp(url, media_type, download_directory)
     else:
         download_single_media(url, media_type, download_directory)
 
@@ -88,6 +88,40 @@ def download_playlist(
     print(f"{COMPLETE}Complete downloading playlist: {playlist.title}{END_COLOR}")
 
 
+def download_playlist_with_ytdlp(
+    url: str, media_type: str, output_directory: str | Path
+) -> None:
+    """Download regular playlists and dynamic YouTube radio mixes."""
+    output_directory = Path(output_directory)
+    imageio_ffmpeg, nodejs_wheel, yt_dlp = _ytdlp_dependencies()
+    try:
+        options = _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel)
+        options.update(
+            {
+                "format": _ytdlp_format(media_type),
+                "outtmpl": str(
+                    output_directory
+                    / "%(playlist_title|Playlist)s"
+                    / "%(playlist_index)03d - %(title)s.%(ext)s"
+                ),
+                "merge_output_format": "mp4",
+                "noplaylist": False,
+                "playlistend": MAX_PLAYLIST_ITEMS,
+            }
+        )
+        if media_type == "audio":
+            options["postprocessors"] = _audio_postprocessors()
+        print(f"Downloading up to {MAX_PLAYLIST_ITEMS} playlist items.")
+        with yt_dlp.YoutubeDL(options) as downloader:
+            result = downloader.download([url])
+        if result:
+            raise RuntimeError(f"yt-dlp exited with status {result}")
+    except yt_dlp.utils.DownloadError as error:
+        raise RuntimeError(f"yt-dlp failed: {error}") from error
+
+    print(f"{COMPLETE}Complete downloading playlist{END_COLOR}")
+
+
 def download_single_media(
     url: str, media_type: str = "video", output_directory: str | Path = "."
 ) -> bool:
@@ -109,9 +143,8 @@ def download_single_media(
         title = _safe_filename(yt.title)
         destination = output_directory / f"{title}.mp4"
 
-        existing_files = [
-            output_directory / f"{title}{suffix}" for suffix in (".mp4", ".m4a", ".mp3")
-        ]
+        existing_suffixes = (".mp3",) if media_type == "audio" else (".mp4",)
+        existing_files = [output_directory / f"{title}{suffix}" for suffix in existing_suffixes]
         if any(path.is_file() for path in existing_files):
             print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
             return True
@@ -136,39 +169,24 @@ def download_single_media(
 
 def _download_with_ytdlp(url: str, destination: Path, media_type: str) -> None:
     """Download protected/adaptive streams with yt-dlp and bundled FFmpeg."""
-    try:
-        import imageio_ffmpeg
-        import nodejs_wheel
-        import yt_dlp
-    except ImportError as error:
-        raise RuntimeError(
-            "This video requires yt-dlp and FFmpeg. "
-            "Run: python -m pip install -r requirements.txt"
-        ) from error
+    imageio_ffmpeg, nodejs_wheel, yt_dlp = _ytdlp_dependencies()
 
     if media_type == "video":
         print("This video uses separate video and audio streams; downloading both.")
-        format_selector = (
-            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
-            "best[height<=720][ext=mp4]"
-        )
     else:
         print("Downloading the best available audio stream.")
-        format_selector = "bestaudio[ext=m4a]/bestaudio"
 
-    options = {
-        "format": format_selector,
-        "outtmpl": str(destination.parent / f"{destination.stem}.%(ext)s"),
-        "merge_output_format": "mp4",
-        "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
-        "js_runtimes": {
-            "node": {"path": str(Path(nodejs_wheel.__file__).parent / "node.exe")}
-        },
-        "extractor_args": {"youtube": {"player_client": ["web_embedded"]}},
-        "noplaylist": True,
-        "retries": 10,
-        "fragment_retries": 10,
-    }
+    options = _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel)
+    options.update(
+        {
+            "format": _ytdlp_format(media_type),
+            "outtmpl": str(destination.parent / f"{destination.stem}.%(ext)s"),
+            "merge_output_format": "mp4",
+            "noplaylist": True,
+        }
+    )
+    if media_type == "audio":
+        options["postprocessors"] = _audio_postprocessors()
     try:
         with yt_dlp.YoutubeDL(options) as downloader:
             result = downloader.download([url])
@@ -176,6 +194,50 @@ def _download_with_ytdlp(url: str, destination: Path, media_type: str) -> None:
         raise RuntimeError(f"yt-dlp failed: {error}") from error
     if result:
         raise RuntimeError(f"yt-dlp exited with status {result}")
+
+
+def _ytdlp_dependencies():
+    try:
+        import imageio_ffmpeg
+        import nodejs_wheel
+        import yt_dlp
+    except ImportError as error:
+        raise RuntimeError(
+            "This download requires yt-dlp and FFmpeg. "
+            "Run: python -m pip install -r requirements.txt"
+        ) from error
+    return imageio_ffmpeg, nodejs_wheel, yt_dlp
+
+
+def _ytdlp_format(media_type: str) -> str:
+    if media_type == "audio":
+        return "bestaudio[ext=m4a]/bestaudio"
+    return (
+        "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+        "best[height<=720][ext=mp4]"
+    )
+
+
+def _audio_postprocessors() -> list[dict]:
+    return [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }
+    ]
+
+
+def _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel) -> dict:
+    return {
+        "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+        "js_runtimes": {
+            "node": {"path": str(Path(nodejs_wheel.__file__).parent / "node.exe")}
+        },
+        "extractor_args": {"youtube": {"player_client": ["web_embedded"]}},
+        "retries": 10,
+        "fragment_retries": 10,
+    }
 
 
 def main() -> None:

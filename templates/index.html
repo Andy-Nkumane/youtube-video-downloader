@@ -10,16 +10,16 @@
   <main class="shell">
     <header>
       <a class="brand" href="/" aria-label="Drop home">
-        <span class="brand-mark">↓</span>
-        <span>DROP</span>
+        <span class="brand-mark">▶</span>
+        <span>YT DROP</span>
       </a>
       <span class="local-badge">LOCAL · PRIVATE</span>
     </header>
 
     <section class="hero">
-      <p class="eyebrow">YOUR MEDIA, YOUR DEVICE</p>
-      <h1>Bring videos<br><em>offline.</em></h1>
-      <p class="intro">Paste a YouTube link. Choose your format. We’ll handle the rest—right here on your machine.</p>
+      <p class="eyebrow"><span></span> YOUR MEDIA, YOUR DEVICE</p>
+      <h1>Save what<br><em>you love.</em></h1>
+      <p class="intro">Paste a YouTube link, choose your format, and save it locally. Simple, fast, and private.</p>
 
       <form id="download-form" class="download-card">
         <label for="url">YouTube URL</label>
@@ -36,11 +36,11 @@
           </label>
           <label class="format-option">
             <input type="radio" name="media_type" value="audio">
-            <span><strong>AUDIO</strong><small>Best available quality</small></span>
+            <span><strong>MP3</strong><small>Audio · 192 kbps</small></span>
           </label>
         </fieldset>
 
-        <button class="submit-button" type="submit"><span>START DOWNLOAD</span><span>→</span></button>
+        <button class="submit-button" type="submit"><span>START DOWNLOAD</span><span class="button-icon">↓</span></button>
         <p id="form-error" class="error" role="alert"></p>
       </form>
     </section>
@@ -50,8 +50,10 @@
         <div><span id="status-dot" class="status-dot"></span><span id="status-label">PREPARING</span></div>
         <span id="progress-label">0%</span>
       </div>
+      <div class="media-heading"><span>NOW DOWNLOADING</span><strong id="media-title">Waiting for media information...</strong></div>
       <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
       <p id="status-message">Connecting to YouTube...</p>
+      <button id="cancel-button" class="cancel-button" type="button">CANCEL DOWNLOAD</button>
       <div id="file-links" class="file-links"></div>
       <details><summary>Activity log</summary><pre id="activity-log"></pre></details>
     </section>
