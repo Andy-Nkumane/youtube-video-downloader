@@ -3,3 +3,8 @@ video-downloads/
 audio-downloads/
 managed_context/
 test_suite_analysis/
+youtube-downloader/
+.python314/
+.python-3.14.6-*.exe
+.python-3.14.6-*.zip
+__pycache__

@@ -1,83 +1,282 @@
-from pytube import YouTube
-from pytube import Playlist
-from pytube.cli import on_progress
+import argparse
 import os
-import pytube
+import re
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
-COMPLETE = "\033[92m" # green
-FAIL = "\033[91m" # red
-EXISTS = "\033[93m" # yellow
-END_COLOR = "\033[0m" # stop
+from pytubefix import Playlist, YouTube
+from pytubefix.exceptions import PytubeFixError
 
-def youtube_download(url, type="video"):
-    video_download_directory(f'{type}-downloads')
+
+COMPLETE = "\033[92m"  # green
+FAIL = "\033[91m"  # red
+EXISTS = "\033[93m"  # yellow
+END_COLOR = "\033[0m"
+MAX_PLAYLIST_ITEMS = 200
+YOUTUBE_CLIENT = "WEB"
+
+
+def on_progress(stream, _chunk: bytes, bytes_remaining: int) -> None:
+    """Display download progress using characters supported by Windows consoles."""
+    filesize = stream.filesize
+    percent = 100 if not filesize else (filesize - bytes_remaining) * 100 / filesize
+    print(f"\rProgress: {percent:5.1f}%", end="", flush=True)
+    if bytes_remaining == 0:
+        print()
+
+
+def youtube_download(url: str, media_type: str = "video", output_root: str | Path = ".") -> None:
+    """Download one YouTube item or a playlist as video or audio."""
+    media_type = media_type.lower()
+    if media_type not in {"video", "audio"}:
+        raise ValueError("media_type must be 'video' or 'audio'")
+
+    download_directory = Path(output_root) / f"{media_type}-downloads"
+    download_directory.mkdir(parents=True, exist_ok=True)
+
+    if _is_playlist_url(url):
+        download_playlist_with_ytdlp(url, media_type, download_directory)
+    else:
+        download_single_media(url, media_type, download_directory)
+
+
+def _is_playlist_url(url: str) -> bool:
+    return bool(parse_qs(urlparse(url).query).get("list"))
+
+
+def _safe_filename(title: str) -> str:
+    """Remove characters that are invalid in Windows filenames."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip().rstrip(".")
+    return cleaned or "untitled"
+
+
+def type_video(yt: YouTube):
+    streams = yt.streams.filter(file_extension="mp4", progressive=True)
+    stream = streams.filter(res="720p").first() or streams.filter(res="360p").first()
+    if stream is None:
+        stream = streams.get_highest_resolution()
+    if stream is None:
+        streams = yt.streams.filter(file_extension="mp4", only_video=True)
+        stream = streams.filter(res="720p").first() or streams.filter(res="360p").first()
+    if stream is None:
+        stream = streams.get_highest_resolution()
+    if stream is None:
+        raise RuntimeError("No MP4 video stream is available")
+    print(f"resolution: {stream.resolution}")
+    return stream
+
+
+def type_audio(yt: YouTube):
+    stream = yt.streams.filter(file_extension="mp4", only_audio=True).order_by("abr").desc().first()
+    if stream is None:
+        raise RuntimeError("No MP4 audio stream is available")
+    print(f"abr: {stream.abr}")
+    return stream
+
+
+def download_playlist(
+    playlist: Playlist, media_type: str = "video", output_root: str | Path = "."
+) -> None:
+    playlist_directory = Path(output_root) / _safe_filename(playlist.title)
+    playlist_directory.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading playlist: {playlist.title}")
+
+    urls = playlist.video_urls[:MAX_PLAYLIST_ITEMS]
+    for index, url in enumerate(urls, 1):
+        print(f"{index}/{len(urls)}")
+        download_single_media(url, media_type, playlist_directory)
+
+    print(f"{COMPLETE}Complete downloading playlist: {playlist.title}{END_COLOR}")
+
+
+def download_playlist_with_ytdlp(
+    url: str, media_type: str, output_directory: str | Path
+) -> None:
+    """Download regular playlists and dynamic YouTube radio mixes."""
+    output_directory = Path(output_directory)
+    imageio_ffmpeg, nodejs_wheel, yt_dlp = _ytdlp_dependencies()
     try:
-        playlist = Playlist(url)
-        download_playlist(playlist, type)
-    except KeyError:
-        download_single_media(url, type) 
-    finally:
-        os.system('spd-say "download complete"')   
+        options = _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel)
+        options.update(
+            {
+                "format": _ytdlp_format(media_type),
+                "outtmpl": str(
+                    output_directory
+                    / "%(playlist_title|Playlist)s"
+                    / "%(playlist_index)03d - %(title)s.%(ext)s"
+                ),
+                "merge_output_format": "mp4",
+                "noplaylist": False,
+                "playlistend": MAX_PLAYLIST_ITEMS,
+                "match_filter": _skip_existing_filter(output_directory, media_type),
+            }
+        )
+        if media_type == "audio":
+            options["postprocessors"] = _audio_postprocessors()
+        print(f"Downloading up to {MAX_PLAYLIST_ITEMS} playlist items.")
+        with yt_dlp.YoutubeDL(options) as downloader:
+            result = downloader.download([url])
+        if result:
+            raise RuntimeError(f"yt-dlp exited with status {result}")
+    except yt_dlp.utils.DownloadError as error:
+        raise RuntimeError(f"yt-dlp failed: {error}") from error
 
-def video_download_directory(directory_name):
-    if os.path.isdir(directory_name):
-        print(f'{EXISTS}File exists: {directory_name}{END_COLOR}')
-    else:
-        print(f'Creating file: {directory_name}')
-        os.mkdir(directory_name)
-    print('--------')
-    os.chdir(directory_name)
+    print(f"{COMPLETE}Complete downloading playlist{END_COLOR}")
 
-def type_video(yt):
-    video_resolution = [stream.resolution for stream in yt.streams.filter(progressive=True)]
-    if '720p' in video_resolution:
-        res = '720p'
-    else:
-        res = '360p'
-    print(f"resolution: {res}")
-    return yt.streams.filter(file_extension='mp4', res=res).first()
 
-def type_audio(yt):
-    abr = [stream.abr for stream in yt.streams.filter(file_extension='mp4', progressive=False, only_audio=True)][-1]
-    print(f"abr = {abr}")
-    return yt.streams.filter(file_extension='mp4', only_audio=True, abr=abr).first()
+def download_single_media(
+    url: str, media_type: str = "video", output_directory: str | Path = "."
+) -> bool:
+    media_type = media_type.lower()
+    if media_type not in {"video", "audio"}:
+        raise ValueError("media_type must be 'video' or 'audio'")
 
-def download_playlist(playlist, type="video"):
-    playlist_title = playlist.title.replace('|', '--')
-    video_download_directory(playlist_title)
-    print(f'Downloading playlist: {playlist_title}')
-    print('------')
-    for index, url in enumerate(playlist.video_urls, 1): 
-        if index < 201:# limiting playlists to 200 as music playlists go on forever
-            print(index)
-            download_single_media(url, type)
+    output_directory = Path(output_directory)
+    output_directory.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # WEB enables pytubefix's automatic PO-token generation, which is
+        # required when YouTube rejects the default client as a bot.
+        yt = YouTube(
+            url,
+            client=YOUTUBE_CLIENT,
+            on_progress_callback=on_progress,
+        )
+        title = _safe_filename(yt.title)
+        destination = output_directory / f"{title}.mp4"
+
+        existing_suffixes = (".mp3",) if media_type == "audio" else (".mp4",)
+        existing_files = [output_directory / f"{title}{suffix}" for suffix in existing_suffixes]
+        existing_file = next((path for path in existing_files if path.is_file()), None)
+        if existing_file is not None:
+            print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
+            print(f"file size: {existing_file.stat().st_size / 1_000_000:.2f} MB")
+            return True
+
+        print(f"Downloading {media_type}: {title}")
+        if media_type == "audio":
+            _download_with_ytdlp(yt.watch_url, destination, media_type)
         else:
-            break
-    print(f'{COMPLETE}Complete downloading playlist: {playlist_title}{END_COLOR}')
-    os.chdir('..')
-
-def download_single_media(url, type="video"):
-    type = type.lower()
-    assert type in ["video", "audio"], "type should be video or audio"
-    yt = YouTube(url, on_progress_callback=on_progress)
-    try:
-        yt_title = ''.join(['' if char in '.:|,' else char for char in yt.title])
-    except pytube.exceptions.PytubeError:
-        print(f'{FAIL}Failed downloading {type}: API issue{END_COLOR}')
-        return
-
-    if os.path.isfile(f'{yt_title}.mp4'):
-        print(f'{EXISTS}Video already downloaded: {yt_title}{END_COLOR}')
-    else:
-        print(f'Downloading {type}: {yt_title}')
-        try:
-            if type == "video":
-                stream = type_video(yt)
+            stream = type_video(yt)
+            print(f"file size: {stream.filesize / 1_000_000:.2f} MB")
+            if not stream.is_progressive:
+                _download_with_ytdlp(yt.watch_url, destination, media_type)
             else:
-                stream = type_audio(yt)
-            print(f"file size: {stream.filesize /(1000*1000):.2f}MB")
-            stream.download()
-            print(f'{COMPLETE}Complete downloading {type}: {yt_title}{END_COLOR}')
-        except:
-            print(f'{FAIL}Failed downloading {type}: {yt_title}{END_COLOR}')
-    print('----')
+                stream.download(output_path=str(output_directory), filename=destination.name)
+    except (PytubeFixError, OSError, RuntimeError) as error:
+        print(f"{FAIL}Failed downloading {media_type}: {error}{END_COLOR}")
+        return False
+
+    print(f"{COMPLETE}Complete downloading {media_type}: {title}{END_COLOR}")
+    return True
+
+
+def _download_with_ytdlp(url: str, destination: Path, media_type: str) -> None:
+    """Download protected/adaptive streams with yt-dlp and bundled FFmpeg."""
+    imageio_ffmpeg, nodejs_wheel, yt_dlp = _ytdlp_dependencies()
+
+    if media_type == "video":
+        print("This video uses separate video and audio streams; downloading both.")
+    else:
+        print("Downloading the best available audio stream.")
+
+    options = _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel)
+    options.update(
+        {
+            "format": _ytdlp_format(media_type),
+            "outtmpl": str(destination.parent / f"{destination.stem}.%(ext)s"),
+            "merge_output_format": "mp4",
+            "noplaylist": True,
+        }
+    )
+    if media_type == "audio":
+        options["postprocessors"] = _audio_postprocessors()
+    try:
+        with yt_dlp.YoutubeDL(options) as downloader:
+            result = downloader.download([url])
+    except yt_dlp.utils.DownloadError as error:
+        raise RuntimeError(f"yt-dlp failed: {error}") from error
+    if result:
+        raise RuntimeError(f"yt-dlp exited with status {result}")
+
+
+def _ytdlp_dependencies():
+    try:
+        import imageio_ffmpeg
+        import nodejs_wheel
+        import yt_dlp
+    except ImportError as error:
+        raise RuntimeError(
+            "This download requires yt-dlp and FFmpeg. "
+            "Run: python -m pip install -r requirements.txt"
+        ) from error
+    return imageio_ffmpeg, nodejs_wheel, yt_dlp
+
+
+def _ytdlp_format(media_type: str) -> str:
+    if media_type == "audio":
+        return "bestaudio[ext=m4a]/bestaudio"
+    return (
+        "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
+        "best[height<=720][ext=mp4]"
+    )
+
+
+def _audio_postprocessors() -> list[dict]:
+    return [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }
+    ]
+
+
+def _skip_existing_filter(output_directory: Path, media_type: str):
+    """Skip playlist entries whose title already exists in the output tree."""
+    expected_extension = ".mp3" if media_type == "audio" else ".mp4"
+
+    def match_filter(info: dict, *, incomplete: bool = False):
+        if incomplete or not info.get("title"):
+            return None
+        title = _safe_filename(info["title"])
+        for path in output_directory.rglob(f"*{expected_extension}"):
+            existing_title = re.sub(r"^\d+\s+-\s+", "", path.stem)
+            if existing_title.casefold() == title.casefold():
+                print(f"{EXISTS}Already downloaded: {title}{END_COLOR}")
+                print(f"file size: {path.stat().st_size / 1_000_000:.2f} MB")
+                return f"{title} already exists"
+        return None
+
+    return match_filter
+
+
+def _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel) -> dict:
+    node_directory = Path(nodejs_wheel.__file__).parent
+    node_executable = (
+        node_directory / "node.exe" if os.name == "nt" else node_directory / "bin" / "node"
+    )
+    return {
+        "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
+        "js_runtimes": {
+            "node": {"path": str(node_executable)}
+        },
+        "extractor_args": {"youtube": {"player_client": ["web_embedded"]}},
+        "retries": 10,
+        "fragment_retries": 10,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Download a YouTube video or playlist.")
+    parser.add_argument("url", help="YouTube video or playlist URL")
+    parser.add_argument(
+        "media_type", nargs="?", default="video", choices=("video", "audio")
+    )
+    parser.add_argument("--output", default=".", help="Parent download directory")
+    args = parser.parse_args()
+    youtube_download(args.url, args.media_type, args.output)
+
+
+if __name__ == "__main__":
+    main()
