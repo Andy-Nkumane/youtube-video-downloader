@@ -1,4 +1,5 @@
 import argparse
+import os
 import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -251,10 +252,14 @@ def _skip_existing_filter(output_directory: Path, media_type: str):
 
 
 def _ytdlp_base_options(imageio_ffmpeg, nodejs_wheel) -> dict:
+    node_directory = Path(nodejs_wheel.__file__).parent
+    node_executable = (
+        node_directory / "node.exe" if os.name == "nt" else node_directory / "bin" / "node"
+    )
     return {
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
         "js_runtimes": {
-            "node": {"path": str(Path(nodejs_wheel.__file__).parent / "node.exe")}
+            "node": {"path": str(node_executable)}
         },
         "extractor_args": {"youtube": {"player_client": ["web_embedded"]}},
         "retries": 10,
